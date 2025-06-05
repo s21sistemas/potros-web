@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -10,14 +10,15 @@ import {
   Image, 
   Pressable, 
   Platform,
-  ActivityIndicator
+  ActivityIndicator, KeyboardAvoidingView, Keyboard, ScrollView
 } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import { db, auth } from '../firebaseConfig';
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
-//ffbe00
-const RegisterScreen = ({ navigation }) => {
+
+const RegisterScreen = ({ navigation, setIsRegistering }) => {
   const [nombreCompleto, setNombreCompleto] = useState('');
   const [correo, setCorreo] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -30,28 +31,20 @@ const RegisterScreen = ({ navigation }) => {
     ocupacion: '',
   });
 
-  const showAlert = (title, message, isSuccess = false) => {
+  useEffect(() => {
+    setIsRegistering(true);
+    return () => setIsRegistering(false);
+  }, []);
+
+  const showAlert = (title, message) => {
     if (Platform.OS === 'web') {
-      window.alert(`${title}\n${message}`);
+      
+       alert(title, message);
     } else {
-      Alert.alert(
-        title,
-        message,
-        [
-          { 
-            text: 'OK', 
-            onPress: () => {
-              if (isSuccess) {
-                navigation.navigate('Login');
-              }
-            }
-          }
-        ]
-      );
+      Alert.alert(title, message);
     }
   };
 
-  // Función para traducir errores de Firebase
   const translateFirebaseError = (error) => {
     switch (error.code) {
       case 'auth/email-already-in-use':
@@ -88,25 +81,22 @@ const RegisterScreen = ({ navigation }) => {
     return isValid;
   };
 
-  const generateRandomCode = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
-
   const isCodeUnique = async (code) => {
     const q = query(collection(db, 'usuarios'), where('codigo_acceso', '==', code));
     const querySnapshot = await getDocs(q);
     return querySnapshot.empty;
   };
 
-  const sendEmail = async (email, code, uid) => {
+   const sendEmail = async (email, code, uid) => {
     try {
-      const response = await fetch('https://us-central1-clubtoros-c8a29.cloudfunctions.net/sendEmailFunction', {
+      const response = await fetch('https://us-central1-clubpotros-f28a5.cloudfunctions.net/sendEmail', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, code, uid }),
       });
+      showAlert('Registro Exitoso! Tu contraseña fue enviada al correo electrónico');
 
       const data = await response.json();
       if (!data.success) {
@@ -118,176 +108,218 @@ const RegisterScreen = ({ navigation }) => {
     }
   };
 
+  const generarCodigoUnico = async () => {
+    let codigoAcceso;
+    let isUnique = false;
+    let intentos = 0;
+    const maxIntentos = 5;
+
+    while (!isUnique && intentos < maxIntentos) {
+      codigoAcceso = Math.floor(100000 + Math.random() * 900000).toString();
+      isUnique = await isCodeUnique(codigoAcceso);
+      intentos++;
+    }
+
+    if (!isUnique) throw new Error('No se pudo generar un código único');
+    return codigoAcceso;
+  };
+
+  const crearUsuarioConRedireccion = async (email, password, nombre, telefono, ocupacion) => {
+  try {
+    // 1. Crear usuario en Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    // 2. Guardar datos en Firestore
+    await addDoc(collection(db, 'usuarios'), {
+      uid: user.uid,
+      nombre_completo: nombre,
+      correo: email,
+      celular: telefono,
+      ocupacion,
+      codigo_acceso: password,
+      fecha_registro: new Date().toISOString(),
+    });
+
+    // 3. Enviar correo electrónico
+    await sendEmail(email, password, user.uid);
+
+    // 4. Mostrar alerta antes de redirigir
+    if (Platform.OS === 'web') {
+      alert('Registro Exitoso! Tu contraseña fue enviada al correo electrónico');
+    } else {
+      Alert.alert(
+        'Registro Exitoso', 
+        'Tu contraseña fue enviada al correo electrónico',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // 5. Cerrar sesión y redirigir después de que el usuario presione OK
+              signOut(auth).then(() => {
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Login', params: { from: 'register' } }],
+                  })
+                );
+              });
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+    }
+
+    // Para web, redirigir después del alert
+    if (Platform.OS === 'web') {
+      await signOut(auth);
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Login', params: { from: 'register' } }],
+        })
+      );
+    }
+
+  } catch (error) {
+    // Limpieza en caso de error
+    try {
+      await signOut(auth);
+    } catch (signOutError) {
+      console.error('Error al cerrar sesión:', signOutError);
+    }
+    throw error;
+  }
+};
+
+  const manejarErroresRegistro = (err) => {
+    console.error('Error en registro:', err);
+    const errorMessage = err.code 
+      ? translateFirebaseError(err) 
+      : err.message || 'Error al registrar. Intenta nuevamente.';
+    
+    showAlert('Error', errorMessage);
+  };
+
   const handleRegister = async () => {
     if (!validateForm()) return;
-
     setLoading(true);
 
     try {
-      // Generar un código único
-      let codigoAcceso;
-      let isUnique = false;
-      let intentos = 0;
-      const maxIntentos = 5;
-
-      while (!isUnique && intentos < maxIntentos) {
-        codigoAcceso = generateRandomCode();
-        isUnique = await isCodeUnique(codigoAcceso);
-        intentos++;
-      }
-
-      if (!isUnique) {
-        throw new Error('No se pudo generar un código único. Por favor, inténtalo de nuevo.');
-      }
-
-      // Mostrar feedback visual
-      Alert.alert(
-        'Registrando usuario',
-        'Estamos creando tu cuenta. Por favor espera...',
-        [],
-        { cancelable: false }
-      );
-
-      // Crear usuario en Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(auth, correo, codigoAcceso);
-      const user = userCredential.user;
-
-      // Guardar datos en Firestore
-      const userData = {
-        uid: user.uid,
-        rol_id: user.uid,
-        nombre_completo: nombreCompleto,
-        correo,
-        celular: telefono,
-        ocupacion,
-        codigo_acceso: codigoAcceso,
-        fecha_registro: new Date().toISOString(),
-      };
-
-      await addDoc(collection(db, 'usuarios'), userData);
-
-      // Enviar correo con el código
-      Alert.alert(
-        'Enviando código de acceso',
-        'Estamos enviando el código a tu correo electrónico...',
-        [],
-        { cancelable: false }
-      );
-
-      await sendEmail(correo, codigoAcceso, user.uid);
-
-      // Éxito - mostrar mensaje y redirigir
-      showAlert(
-        '¡Registro exitoso!', 
-        `Usuario registrado correctamente. Tu código de acceso ha sido enviado a tu correo electrónico.`, 
-        true
-      );
-
+      const codigoAcceso = await generarCodigoUnico();
+      await crearUsuarioConRedireccion(correo, codigoAcceso, nombreCompleto, telefono, ocupacion);
     } catch (err) {
-      console.error('Error al registrar el usuario:', err);
-      
-      // Manejar errores específicos de Firebase
-      const errorMessage = err.code 
-        ? translateFirebaseError(err) 
-        : err.message || 'Error al registrar el usuario. Por favor, inténtalo de nuevo.';
-      
-      showAlert('Error', errorMessage);
+      manejarErroresRegistro(err);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
+ return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.rectangle}>
-        <View style={styles.leftColumn}>
-          <Image
-            source={require('../assets/logoToros.jpg')}
-            style={styles.image}
-            resizeMode="contain"
-          />
-        </View>
-        <View style={styles.rightColumn}>
-          <Text style={styles.welcomeText}>Registro</Text>
-          <Text style={styles.subtitle}>Registro para padres/tutores de jugadores</Text>
-          <Text style={styles.subtitle}>Ingresa tus datos para realizar tu registro (los campos marcados con * son obligatorios)</Text>
+            <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+            enabled
+          >
+      <ScrollView 
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+        >
+
+            <View style={styles.rectangle}>
           
-          <TextInput
-            style={[styles.input, errors.nombreCompleto ? styles.inputError : null]}
-            placeholder="Nombre Completo *"
-            placeholderTextColor="#999"
-            value={nombreCompleto}
-            onChangeText={setNombreCompleto}
-            editable={!loading}
-          />
-          {errors.nombreCompleto ? <Text style={styles.errorText}>{errors.nombreCompleto}</Text> : null}
+              
+            
+              <View style={styles.rightColumn}>
+                <Text style={styles.welcomeText}>Registro</Text>
+                <Text style={styles.subtitle}>Registro para padres/tutores de jugadores</Text>
+                <Text style={styles.subtitle}>Ingresa tus datos para realizar tu registro (los campos marcados con * son obligatorios)</Text>
+                
+                <TextInput
+                  style={[styles.input, errors.nombreCompleto ? styles.inputError : null]}
+                  placeholder="Nombre Completo *"
+                  placeholderTextColor="#999"
+                  value={nombreCompleto}
+                  onChangeText={setNombreCompleto}
+                  editable={!loading}
+                />
+                {errors.nombreCompleto ? <Text style={styles.errorText}>{errors.nombreCompleto}</Text> : null}
 
-          <TextInput
-            style={[styles.input, errors.correo ? styles.inputError : null]}
-            placeholder="Correo electrónico *"
-            placeholderTextColor="#999"
-            value={correo}
-            onChangeText={setCorreo}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!loading}
-          />
-          {errors.correo ? <Text style={styles.errorText}>{errors.correo}</Text> : null}
+                <TextInput
+                  style={[styles.input, errors.correo ? styles.inputError : null]}
+                  placeholder="Correo electrónico *"
+                  placeholderTextColor="#999"
+                  value={correo}
+                  onChangeText={setCorreo}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!loading}
+                />
+                {errors.correo ? <Text style={styles.errorText}>{errors.correo}</Text> : null}
 
-          <TextInput
-            style={[styles.input, errors.telefono ? styles.inputError : null]}
-            placeholder="Teléfono (10 dígitos)"
-            placeholderTextColor="#999"
-            value={telefono}
-            onChangeText={setTelefono}
-            keyboardType="phone-pad"
-            maxLength={10}
-            editable={!loading}
-          />
-          {errors.telefono ? <Text style={styles.errorText}>{errors.telefono}</Text> : null}
+                <TextInput
+                  style={[styles.input, errors.telefono ? styles.inputError : null]}
+                  placeholder="Teléfono (10 dígitos)"
+                  placeholderTextColor="#999"
+                  value={telefono}
+                  onChangeText={setTelefono}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  editable={!loading}
+                />
+                {errors.telefono ? <Text style={styles.errorText}>{errors.telefono}</Text> : null}
 
-          <TextInput
-            style={[styles.input, errors.ocupacion ? styles.inputError : null]}
-            placeholder="Ocupación"
-            placeholderTextColor="#999"
-            value={ocupacion}
-            onChangeText={setOcupacion}
-            editable={!loading}
-          />
-          {errors.ocupacion ? <Text style={styles.errorText}>{errors.ocupacion}</Text> : null}
+                <TextInput
+                  style={[styles.input, errors.ocupacion ? styles.inputError : null]}
+                  placeholder="Ocupación"
+                  placeholderTextColor="#999"
+                  value={ocupacion}
+                  onChangeText={setOcupacion}
+                  editable={!loading}
+                />
+                {errors.ocupacion ? <Text style={styles.errorText}>{errors.ocupacion}</Text> : null}
 
-          <Pressable 
-            style={({ pressed }) => [
-              styles.loginButton, 
-              pressed && styles.loginButtonPressed,
-              loading && styles.loginButtonDisabled
-            ]} 
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <>
-                <Ionicons name="person-add" size={20} color="#FFF" style={styles.buttonIcon} />
-                <Text style={styles.loginButtonText}>Registrarse</Text>
-              </>
-            )}
-          </Pressable>
+                <Pressable 
+                  style={({ pressed }) => [
+                    styles.loginButton, 
+                    pressed && styles.loginButtonPressed,
+                    loading && styles.loginButtonDisabled
+                  ]} 
+                  onPress={handleRegister}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="person-add" size={20} color="#FFF" style={styles.buttonIcon} />
+                      <Text style={styles.loginButtonText}>Registrarse</Text>
+                    </>
+                  )}
+                </Pressable>
 
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Login')}
-            disabled={loading}
-          >
-            <Text style={[styles.linkText, loading && styles.linkTextDisabled]}>
-              ¿Ya tienes una cuenta? Inicia Sesión
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+                <TouchableOpacity 
+                  onPress={() => navigation.navigate('Login')}
+                  disabled={loading}
+                >
+                  <Text style={[styles.linkText, loading && styles.linkTextDisabled]}>
+                    ¿Ya tienes una cuenta? Inicia Sesión
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            </ScrollView>
+
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: {
@@ -299,7 +331,7 @@ const styles = StyleSheet.create({
   rectangle: {
     flexDirection: 'row',
     width: '90%',
-    height: '55%',
+    height: '85%',
     borderRadius: 10,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -310,7 +342,7 @@ const styles = StyleSheet.create({
   },
   leftColumn: {
     flex: 1,
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -347,21 +379,21 @@ const styles = StyleSheet.create({
     borderColor: '#FF3B30',
   },
   loginButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 15,
     flexDirection: 'row',
     justifyContent: 'center',
-    shadowColor: '#ffbe00',
+    shadowColor: '#b51f28',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 3,
   },
   loginButtonPressed: {
-    backgroundColor: '#ffbe60',
+    backgroundColor: '#b51f28',
   },
   loginButtonDisabled: {
     backgroundColor: '#cccccc',
@@ -375,7 +407,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   linkText: {
-    color: '#ffbe00',
+    color: '#b51f28',
     textAlign: 'center',
     marginBottom: 10,
     fontSize: 14,

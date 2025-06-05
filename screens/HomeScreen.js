@@ -17,7 +17,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 
 // Configuración de Firebase
-//ffbe00
+//b51f28
 const auth = getAuth(app);
 const storage = getStorage(app);
 const db = getFirestore(app);
@@ -183,6 +183,7 @@ const safeUploadFile = async ({ uri, name, folder, type = null }) => {
         if (formData.firma.length === 0) newErrors.firma = 'Captura tu firma';
         if (!formData.foto_jugador) newErrors.foto_jugador = 'Sube una foto del jugador';
         break;
+
     }
     
     setErrors(newErrors);
@@ -391,7 +392,34 @@ const handleSubmit = async () => {
     } catch (dbError) {
       console.error('Error al obtener temporada activa:', dbError);
     }
+    const datosMinimos = {
+      ...formData,
+      foto: fotoJugadorURL,
+    };
+    console.log(datosMinimos);
+    
+    // Verifica si algún campo requerido está vacío, null o undefined
+    const estaIncompleto = Object.entries(datosMinimos).some(([key, value]) => {
+      if(key === 'firma')return false;
+      if (value === undefined || value == null || value == '') {
+    }
+      return value === undefined || value === null || value === '';
+    });
+    
+    const documentosIncompletos = Object.entries(datosMinimos.documentos).some(([key, value]) => {
+      if(key === 'firma')return false;
 
+      if (value === undefined || value == null || value == '') {
+    }
+      return value === undefined || value === null || value === '';
+    });
+
+    console.log('estaIncompleto', estaIncompleto);
+    console.log('documentosIncompletos', documentosIncompletos);
+    
+    const estatus = (estaIncompleto || documentosIncompletos) ? 'Incompleto' : 'Completo';
+    
+    console.log('status', estatus);
     // 6. Crear objeto de registro
     const datosRegistro = {
       nombre: formData.nombre,
@@ -419,7 +447,7 @@ const handleSubmit = async () => {
       numero_mfl: formData.numero_mfl,
       fecha_registro: new Date(),
       uid: uid,
-      estatus: "Completo",
+      estatus,
       ...(temporadaActiva && { temporadaId: temporadaActiva }),
       ...(formData.tipo_inscripcion === 'transferencia' && {
         transferencia: formData.transferencia
@@ -433,8 +461,7 @@ const handleSubmit = async () => {
     // 8. Procesar pagos
     await processPayments(docRef.id, formData, temporadaActiva);
 
-    
-       showAlert(
+    showAlert(
       'Registro Exitoso',
         'Jugador registrado correctamente',
        [{ text: 'OK', onPress: () => navigation.navigate('MainTabs') }]);
@@ -451,23 +478,13 @@ const handleSubmit = async () => {
 };
 
 
-  // Función con reintentos automáticos
-  const withRetry = async (fn, maxRetries = 3, delayMs = 1000) => {
-    let lastError;
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        return await fn();
-      } catch (error) {
-        lastError = error;
-        if (i < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-      }
-    }
-    throw lastError;
-  };
+
   
   // Procesar pagos (separado para mejor organización)
+// Modifica la llamada a processPayments en handleSubmit:
+
+
+// Y actualiza la función processPayments:
 const processPayments = async (playerId, formData, temporadaActiva) => {
   try {
     const costosCollection = formData.tipo_inscripcion === 'porrista' ? 'costos-porrista' : 'costos-jugador';
@@ -493,7 +510,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
       const total = inscripcion + coaching;
 
       const pagosPorrista = {
-        porristaId: playerId,
+        porristaId: playerId, // Usamos el playerId que recibimos como parámetro
         nombre: nombreCompleto,
         pagos: [
           {
@@ -523,7 +540,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
         monto_total_pendiente: total,
         monto_total: total,
         fecha_registro: fechaActual.toISOString().split('T')[0],
-        temporadaId: temporadaActiva?.value || costosData.temporadaId?.value || null
+        temporadaId: temporadaActiva || costosData.temporadaId
       };
       await addDoc(collection(db, 'pagos_porristas'), pagosPorrista);
     } else {
@@ -537,7 +554,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
       const total = inscripcion + coaching + tunel + botiquin + equipamiento + pesaje;
 
       const pagosJugador = {
-        jugadorId: playerId,
+        jugadorId: playerId, // Usamos el playerId que recibimos como parámetro
         nombre: nombreCompleto,
         categoria: formData.categoria,
         pagos: [
@@ -551,37 +568,6 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
             monto: inscripcion,
             prorroga: false,
             fecha_limite: fechaLimite.toISOString().split('T')[0],
-            metodo_pago: null,
-            abono: 'NO',
-            abonos: [],
-            total_abonado: 0
-          },
-          {
-            tipo: 'Coaching',
-            estatus: 'pendiente',
-            fecha_pago: null,
-            fecha_limite: null,
-            monto: coaching,
-            metodo_pago: null,
-            abono: 'NO',
-            abonos: [],
-            total_abonado: 0
-          },
-          {
-            tipo: 'Túnel',
-            estatus: 'pendiente',
-            fecha_pago: null,
-            monto: tunel,
-            metodo_pago: null,
-            abono: 'NO',
-            abonos: [],
-            total_abonado: 0
-          },
-          {
-            tipo: 'Botiquín',
-            estatus: 'pendiente',
-            fecha_pago: null,
-            monto: botiquin,
             metodo_pago: null,
             abono: 'NO',
             abonos: [],
@@ -613,7 +599,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
         monto_total_pendiente: total,
         monto_total: total,
         fecha_registro: fechaActual.toISOString().split('T')[0],
-        temporadaId: temporadaActiva?.value || costosData.temporadaId?.value || null
+        temporadaId: temporadaActiva?.value || costosData.temporadaId
       };
       await addDoc(collection(db, 'pagos_jugadores'), pagosJugador);
     }
@@ -716,7 +702,7 @@ const TipoInscripcionForm = ({ formData, setFormData, errors, onNext, navigation
 
   const tipoInscripcionOptions = [
     { label: "Selecciona un tipo de inscripción", value: "" },
-    { label: "Novato", value: "novato" },
+    { label: "Novato / Nuevo Registro", value: "novato" },
     { label: "Reinscripción", value: "reinscripcion" },
     { label: "Transferencia", value: "transferencia" },
     ...(formData.sexo === "mujer" ? [{ label: "Porrista", value: "porrista" }] : []),
@@ -1166,7 +1152,7 @@ useEffect(() => {
               {formData.categoria && (
                 <>
                   <Text style={styles.categoriaText}>
-                    Categoría asignada: 
+                    Categoría asignada:  
                     <Text style={styles.categoriaValue}>{formData.categoria}</Text>
                   </Text>
                   {formData.categoria === 'NO ENCONTRADA' && (
@@ -1363,6 +1349,7 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(null);
   const [hasGalleryPermission, setHasGalleryPermission] = useState(null);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -1377,6 +1364,7 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event, gestureState) => {
+      setScrollEnabled(false);
       const { locationX, locationY } = event.nativeEvent;
       setIsDrawing(true);
       setCurrentPath([{ x: locationX, y: locationY }]);
@@ -1391,6 +1379,7 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
       setPaths((prevPaths) => [...prevPaths, currentPath]);
       setCurrentPath([]);
       setFormData(prev => ({ ...prev, firma: [...prev.firma, ...currentPath] }));
+      setScrollEnabled(true);
     },
   });
 
@@ -1472,9 +1461,10 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
             style={styles.mainContent}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            scrollEnabled={Platform.OS === 'ios' || Platform.OS === 'web' ? scrollEnabled : true}
           >
       <View style={styles.formContainer}>
-        <Text style={styles.title}>Firma y Foto</Text>
+        <Text style={styles.title}>Firma y Foto </Text>
         
         <Text style={styles.sectionTitle}>Firma:</Text>
         <View style={styles.signatureContainer} {...panResponder.panHandlers}>
@@ -1571,6 +1561,7 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
               {field === 'curp_jugador' && 'CURP del Jugador'}
               {field === 'acta_nacimiento' && 'Acta de Nacimiento'}
               {field === 'comprobante_domicilio' && 'Comprobante de Domicilio'}
+
             </Text>
             
             <TouchableOpacity 
@@ -1587,31 +1578,30 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
           </View>
         ))}
 
-        {/* Sección de declaración de veracidad */}
-        <View style={styles.declarationContainer}>
-          <View style={styles.checkboxContainer}>
-            <TouchableOpacity 
-              style={[styles.checkbox, acceptedDeclaration && styles.checkboxChecked]}
-              onPress={() => setAcceptedDeclaration(!acceptedDeclaration)}
-            >
-              {acceptedDeclaration && <Text style={styles.checkmark}>✓</Text>}
-            </TouchableOpacity>
-            <Text style={styles.declarationText}>
-              Declaro bajo protesta de decir verdad que la información y documentación proporcionada en esta 
-              aplicación y presentada al club toros es verídica, por lo que en caso de existir falsedad en 
-              ella deslindo de toda responsabilidad al Club Toros y tengo pleno conocimiento que se aplicarán 
-              las sanciones administrativas y penas establecidas en los ordenamientos del reglamento 
-              establecido por la liga.
-            </Text>
-          </View>
-        </View>
 
         {/* Sección de aceptación del reglamento */}
+        <View style={styles.declarationContainer}>
+                          <View style={styles.checkboxContainer}>
+                            <TouchableOpacity 
+                              style={[styles.checkbox, acceptedDeclaration && styles.checkboxChecked]}
+                              onPress={() => setAcceptedDeclaration(!acceptedDeclaration)}
+                            >
+                              {acceptedDeclaration && <Text style={styles.checkmark}>✓</Text>}
+                            </TouchableOpacity>
+                            <Text style={styles.declarationText}>
+                              Declaro bajo protesta de decir verdad que la información y documentación proporcionada en esta 
+                              aplicación y presentada al Club Potros es verídica, por lo que en caso de existir falsedad en 
+                              ella deslindo de toda responsabilidad al Club Potros y tengo pleno conocimiento que se aplicarán 
+                              las sanciones administrativas y penas establecidas en los ordenamientos del reglamento 
+                              establecido por la liga.
+                            </Text>
+                          </View>
+                        </View>
         <View style={styles.regulationContainer}>
           <Text style={styles.regulationTitle}>Reglamento del Equipo</Text>
           
           <TouchableOpacity 
-            onPress={() => Linking.openURL('https://clubtoros.com/politicas/reglamentoToros.pdf')} 
+            onPress={() => Linking.openURL('https://clubpotros.mx/politicas/ReglamentoPotros.pdf')} 
             style={styles.regulationLink}
           >
             <Text style={styles.regulationLinkText}>Descargue, lea y firme el reglamento</Text>
@@ -1635,8 +1625,8 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
             styles.submitButton,
             (!acceptedRegulation || !acceptedDeclaration || currentUpload) && styles.disabledButton
           ]} 
-          onPress={onSubmit}
-          disabled={!acceptedRegulation || !acceptedDeclaration || !!currentUpload}
+         onPress={onSubmit}
+         disabled={!acceptedRegulation || !acceptedDeclaration || !!currentUpload}
         >
           <Text style={styles.submitButtonText}>
             {currentUpload ? 'Subiendo archivos...' : 'Finalizar Registro'}
@@ -1649,14 +1639,46 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
 
 // Estilos
 const styles = StyleSheet.create({
+
+
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    ...Platform.select({
+      web: { minHeight: '100vh' }
+    })
+  },
   container: {
     flex: 1,
-    paddingTop:35,
-    backgroundColor: '#f5f5f5',
+    ...Platform.select({
+      web: {
+        display: 'flex',
+        flexDirection: 'column',
+        height: '150%',
+        overflow: 'hidden'
+      }
+    })
   },
-  scrollContainer: {
-    flexGrow: 1,
-    padding: 20,
+  mainContent: {
+    flex: 1,
+    zIndex: 1,
+    paddingHorizontal: 15,
+    ...Platform.select({
+      web: {
+        maxHeight: '150%',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }
+    })
+  },
+  scrollContent: {
+    paddingBottom: 100,
+    ...Platform.select({
+      web: {
+        minHeight: '150%',
+        flexGrow: 1
+      }
+    })
   },
   formContainer: {
     backgroundColor: '#fff',
@@ -1699,7 +1721,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   button: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
@@ -1711,20 +1733,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   secondaryButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     padding: 12,
     borderRadius: 5,
     alignItems: 'center',
     marginVertical: 10,
     borderWidth: 1,
-    borderColor: '#ffbe00',
+    borderColor: '#b51f28',
   },
   secondaryButtonText: {
-    color: '#333',
+    color: '#fff',
     fontWeight: '500',
   },
   submitButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     padding: 15,
     borderRadius: 5,
     alignItems: 'center',
@@ -1744,7 +1766,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 20,
     left: 20,
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     padding: 15,
     borderRadius: 5,
   },
@@ -1851,7 +1873,7 @@ const styles = StyleSheet.create({
     color: '#444',
   },
   uploadButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     padding: 12,
     borderRadius: 6,
     alignItems: 'center',
@@ -1890,7 +1912,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   disabledButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
   },
   webInput: {
     borderWidth: 1,
@@ -1973,15 +1995,8 @@ const styles = StyleSheet.create({
     color: '#495057',
     flex: 1,
   },
-    mainContent: {
-    flex: 1,
-    zIndex: 1,
-    paddingLeft: 10,
-    paddingRight: 10,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
+    
+  
    declarationContainer: {
     marginTop: 20,
     marginBottom: 20,

@@ -63,11 +63,15 @@ const LoginScreen = ({ navigation }) => {
     if (validateForm()) {
       try {
         await signInWithEmailAndPassword(auth, correo, contrasena);
-        // 🔴 Quita la navegación manual
-        // App.js redirige automáticamente al detectar sesión activa
+ 
       } catch (error) {
         console.error('Error al iniciar sesión:', error);
-        Alert.alert('Error', 'Correo o contraseña incorrectos. Por favor, intenta de nuevo.');
+        
+        if (Platform.OS === 'web') {
+              alert('Error', 'Correo o contraseña incorrectos. Por favor, intenta de nuevo.');
+            }else{
+                Alert.alert('Error', 'Correo o contraseña incorrectos. Por favor, intenta de nuevo.');
+            }
       }
     }
   };
@@ -79,7 +83,6 @@ const LoginScreen = ({ navigation }) => {
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             contentContainerStyle={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
@@ -87,7 +90,7 @@ const LoginScreen = ({ navigation }) => {
             <View style={styles.loginContainer}>
               <View style={styles.headerContainer}>
                 <Image
-                  source={require('../assets/logoToros.jpg')}
+                  source={require('../assets/logoPotros.jpg')}
                   style={styles.logoImage}
                   resizeMode="contain"
                 />
@@ -145,7 +148,6 @@ const LoginScreen = ({ navigation }) => {
               </View>
             </View>
           </ScrollView>
-        </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -184,7 +186,7 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontFamily: 'MiFuente',
     fontSize: 32,
-    color: '#ffbe00',
+    color: '#b51f28',
     textAlign: 'center',
     marginBottom: 5,
   },
@@ -208,22 +210,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   inputError: {
-    borderColor: '#ffbe00',
+    borderColor: '#b51f28',
   },
   errorText: {
-    color: '#ffbe00',
+    color: '#b51f28',
     fontSize: 12,
     marginBottom: 15,
     marginLeft: 15,
   },
   loginButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     paddingVertical: 15,
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
-    shadowColor: '#ffbe00',
+    shadowColor: '#b51f28',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
@@ -247,7 +249,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   linkTextBold: {
-    color: '#ffbe00',
+    color: '#b51f28',
     fontWeight: 'bold',
   },
 });
