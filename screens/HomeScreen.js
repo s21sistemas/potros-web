@@ -574,7 +574,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
             total_abonado: 0
           },
           {
-            tipo: 'Equipamiento',
+            tipo: 'Pesaje',
             estatus: 'pendiente',
             fecha_pago: null,
             fecha_limite: null,
@@ -585,7 +585,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
             total_abonado: 0
           },
           {
-            tipo: 'Pesaje',
+            tipo: 'Primera Jornada',
             estatus: 'pendiente',
             fecha_pago: null,
             monto: pesaje,
