@@ -26,6 +26,9 @@ export default {
       }
     ],
     ios: {
+      runtimeVersion: {
+        policy: "appVersion"
+      },
       supportsTablet: true,
       bundleIdentifier: "com.mx.s1sistem.ClubPotros",
       icon: "./assets/logoPotros.jpg",
@@ -41,6 +44,7 @@ export default {
       }
     },
     android: {
+      runtimeVersion: "1.0.0",
       package: "com.mx.s1sistem.ClubPotros",
       
       adaptiveIcon: {
@@ -56,12 +60,15 @@ export default {
     web: {
       favicon: "./assets/potrosIcon.png"
     },
+    updates: {
+      url: "https://u.expo.dev/940bd2e2-f080-48f0-9ef7-9723472315f9"
+    },
     extra: {
       eas: {
         projectId: "940bd2e2-f080-48f0-9ef7-9723472315f9"
       }
     },
-    owner: "21sistema",
+    owner: "s21sistem",
     plugins: [
       "expo-signature",
       withFixedFirebaseModularHeaders // <- referencia directa al plugin
