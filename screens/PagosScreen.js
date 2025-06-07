@@ -23,8 +23,13 @@ const PagosScreen = ({ route, navigation }) => {
   const [esPorrista, setEsPorrista] = useState(false);
   const [alCorriente, setAlCorriente] = useState(false);
 
-  const formatTipoPago = (tipo) => {
-    return tipo === "Túnel" ? "Aportación" : tipo;
+  const formatTipoPago = (tipo, monto = 0) => {
+    if (tipo === "Túnel") return "Aportación";
+  if (tipo === "Equipamiento") return "Pago de Pesaje";
+  if (tipo === "Pesaje") {
+    return monto === 0 ? "Pago de Pesaje" : "Primera Jornada";
+  }
+  return tipo;
   };
   
   const formatFirestoreDate = (dateString) => {
@@ -628,7 +633,7 @@ const generatePDF = async (pago) => {
                           if (pago) {
                             Alert.alert(
                               `Detalle de pago`,
-                              `Tipo: ${formatTipoPago(pago.tipo)}\nMonto: $${pago.monto}\nEstado: ${pago.estatus}\nFecha límite: ${pago.fecha_limite}`
+                              `Tipo: ${formatTipoPago(pago.tipo, pago.monto)}\nMonto: $${pago.monto}\nEstado: ${pago.estatus}\nFecha límite: ${pago.fecha_limite}`
                             );
                           }
                         }
@@ -726,7 +731,7 @@ const generatePDF = async (pago) => {
                 ]}
               >
                 <View style={styles.paymentHeader}>
-                  <Text style={styles.paymentType}>{formatTipoPago(pago.tipo)}</Text>
+                  <Text style={styles.paymentType}>{formatTipoPago(pago.tipo, pago.monto)}</Text>
                   <View style={styles.paymentStatusContainer}>
                     <Text
                       style={[
