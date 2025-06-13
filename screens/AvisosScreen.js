@@ -44,7 +44,7 @@ const AvisosScreen = ({ navigation }) => {
   const fetchAvisos = (userId) => {
     const q = query(
       collection(db, 'alertas'),
-      where('tutor_id', '==', userId)
+      where('uid', '==', userId)
     );
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {

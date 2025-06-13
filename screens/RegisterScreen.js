@@ -209,7 +209,7 @@ const RegisterScreen = ({ navigation }) => {
             style={{ flex: 1 }}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
           >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+           
               <ScrollView
                 contentContainerStyle={styles.scrollContainer}
                 keyboardShouldPersistTaps="handled"
@@ -296,7 +296,6 @@ const RegisterScreen = ({ navigation }) => {
                 </View>
               </View>
               </ScrollView>
-              </TouchableWithoutFeedback>
               </KeyboardAvoidingView>
     </SafeAreaView>
   );
