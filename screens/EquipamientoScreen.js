@@ -16,7 +16,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 const { width, height } = Dimensions.get('window');
-
+//cambios equipamiento, pagos, correción de firma web 
 const EquipamientoScreen = ({ route, navigation }) => {
   const [equipamiento, setEquipamiento] = useState(null);
   const [loading, setLoading] = useState(true);
